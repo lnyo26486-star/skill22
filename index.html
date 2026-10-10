@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스킬 이펙트 스튜디오</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gugi&family=Jua&family=Noto+Serif+KR:wght@400;700;900&family=Noto+Sans+KR:wght@400;700;900&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>스킬 이펙트 스튜디오</h1>
+    <nav class="tabs" aria-label="기능">
+      <button data-tab="editor" aria-selected="true">이펙트 편집기</button>
+      <button data-tab="convert" aria-selected="false">APNG 변환</button>
+      <button data-tab="links" aria-selected="false">이미지 링크</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ================= 이펙트 편집기 ================= -->
+    <section id="tab-editor" class="tab">
+      <div class="ed-bar">
+        <div class="grp">
+          <label>가로<input id="pW" type="number" min="16" max="4096" value="512"></label>
+          <label>세로<input id="pH" type="number" min="16" max="4096" value="512"></label>
+          <label>FPS<input id="pFps" type="number" min="5" max="60" value="30"></label>
+          <label>길이(초)<input id="pDur" type="number" min="0.2" max="30" step="0.1" value="1.5"></label>
+        </div>
+        <div class="grp">
+          <button id="btnNew">새로 만들기</button>
+          <button id="btnSave">프로젝트 저장</button>
+          <button id="btnLoad">불러오기</button>
+          <input id="fileProj" type="file" accept="application/json,.json" hidden>
+        </div>
+        <div class="grp export">
+          <label>파일 이름<input id="expName" type="text" value="effect" size="10"></label>
+          <label>WebP 화질<input id="webpQ" type="range" min="0.5" max="1" step="0.05" value="0.9"></label>
+          <label>WebM 코덱<select id="webmCodec"><option value="vp9">VP9</option><option value="vp8">VP8</option></select></label>
+          <button id="expWebp" class="primary">WebP로 저장</button>
+          <button id="expWebm" class="primary">WebM으로 저장</button>
+          <button id="expPng">현재 프레임 PNG</button>
+        </div>
+      </div>
+
+      <div class="ed-grid">
+        <aside class="panel ed-left" aria-label="레이어">
+          <div class="add">
+            <button id="addText">+ 텍스트</button>
+            <button id="addImage">+ 이미지</button>
+            <button id="addShape">+ 도형</button>
+            <input id="fileImg" type="file" accept="image/*" multiple hidden>
+            <input id="fileReplace" type="file" accept="image/*" hidden>
+          </div>
+          <div class="url-add">
+            <input id="imgUrl" type="url" placeholder="이미지 주소로 추가" aria-label="이미지 주소">
+            <button id="addImgUrl">추가</button>
+          </div>
+          <select id="tplSel" aria-label="템플릿">
+            <option value="">템플릿 추가…</option>
+          </select>
+          <ul id="layerList"></ul>
+        </aside>
+
+        <div class="ed-center">
+          <div class="stage-wrap" data-bg="checker"><canvas id="stage" aria-label="미리보기 화면"></canvas></div>
+          <div class="transport">
+            <button id="btnPlay">재생</button>
+            <input id="scrub" type="range" min="0" max="1.5" step="0.01" value="0" aria-label="재생 위치">
+            <span id="timeLabel">0.00 / 1.50초</span>
+            <label class="chk"><input id="loopPlay" type="checkbox" checked>반복</label>
+            <label>미리보기 배경
+              <select id="bgPrev">
+                <option value="checker">투명 (체커)</option>
+                <option value="dark">어두운 배경</option>
+                <option value="light">밝은 배경</option>
+                <option value="field">전장 느낌</option>
+              </select>
+            </label>
+          </div>
+          <div id="timeline" class="timeline" aria-label="타임라인"></div>
+        </div>
+
+        <aside class="panel ed-right" id="inspector" aria-label="속성"></aside>
+      </div>
+    </section>
+
+    <!-- ================= APNG 변환 ================= -->
+    <section id="tab-convert" class="tab" hidden>
+      <div class="narrow">
+        <div id="cvDrop" class="dropzone" tabindex="0" role="button">
+          <strong>APNG 파일을 끌어다 놓거나 클릭해서 고르세요</strong>
+          <span>GIF, 움직이는 WebP도 변환할 수 있어요 (브라우저가 지원하면)</span>
+        </div>
+        <input id="cvFile" type="file" accept="image/png,image/apng,image/gif,image/webp,.apng" hidden>
+
+        <div id="cvBody" hidden>
+          <div class="cv-top">
+            <div>
+              <h3>원본</h3>
+              <div class="checker orig"><img id="cvOrig" alt="원본 미리보기"></div>
+            </div>
+            <div>
+              <h3>정보</h3>
+              <dl id="cvInfo"></dl>
+            </div>
+          </div>
+
+          <div class="cv-opts panel">
+            <fieldset>
+              <legend>저장 형식</legend>
+              <label class="chk"><input type="radio" name="cvFmt" value="webp" checked>WebP (애니메이션 · 투명 · 권장)</label>
+              <label class="chk"><input type="radio" name="cvFmt" value="webm">WebM (영상 · 투명)</label>
+            </fieldset>
+            <label>크기(%)<input id="cvScale" type="number" min="5" max="400" value="100"></label>
+            <label id="cvWebpOpt">화질<input id="cvQ" type="range" min="0.5" max="1" step="0.05" value="0.9"></label>
+            <label id="cvWebmOpt" hidden>코덱<select id="cvCodec"><option value="vp9">VP9</option><option value="vp8">VP8</option></select></label>
+            <button id="cvGo" class="primary">변환하기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 이미지 링크 ================= -->
+    <section id="tab-links" class="tab" hidden>
+      <div class="narrow">
+        <details id="ghSettings" class="panel gh">
+          <summary>GitHub 연결 설정</summary>
+          <p class="hint">이미지를 내 GitHub 저장소에 올리면 게임에서 쓸 수 있는 주소가 만들어져요. 토큰은 이 브라우저에만 저장되고 GitHub API 외에는 전송되지 않아요.
+            공개(Public) 저장소 하나를 따로 만들고, 그 저장소만 허용한 Fine-grained 토큰(Contents: Read and write)을 쓰는 걸 권장해요.</p>
+          <div class="gh-grid">
+            <label>토큰<input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_..."></label>
+            <label>저장소<input id="ghRepo" type="text" placeholder="사용자이름/저장소이름"></label>
+            <label>브랜치<input id="ghBranch" type="text" placeholder="main"></label>
+            <label>폴더<input id="ghDir" type="text" placeholder="assets"></label>
+          </div>
+          <div class="row-btns">
+            <button id="ghSave" class="primary">저장</button>
+            <button id="ghTest">연결 테스트</button>
+            <button id="ghClear" class="danger">저장된 정보 지우기</button>
+          </div>
+        </details>
+
+        <div id="dropzone" class="dropzone" tabindex="0" role="button">
+          <strong>이미지를 끌어다 놓거나, 클릭해서 고르거나, Ctrl+V로 붙여넣으세요</strong>
+          <span>PNG, JPG, GIF, WebP, SVG, WebM</span>
+        </div>
+        <input id="fileLinks" type="file" accept="image/*,video/webm" multiple hidden>
+
+        <div class="list-head"><button id="upAll" class="primary" hidden>모두 올리기</button></div>
+        <ul id="linkItems" class="link-items"></ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- 결과 창 -->
+  <dialog id="result">
+    <form method="dialog" class="dlg-head"><h2>완성!</h2><button>닫기</button></form>
+    <div id="resPreview" class="checker res-preview"></div>
+    <p id="resInfo" class="res-info"></p>
+    <p id="resNote" class="hint" hidden>투명 배경은 영상을 직접 재생해서 확인해 주세요. 배경이 검게 나오면 WebM 코덱을 바꿔 보거나 WebP로 저장하세요.</p>
+    <div class="row-btns">
+      <button id="resDownload" class="primary">내려받기</button>
+      <button id="resUpload">GitHub에 올리고 링크 받기</button>
+    </div>
+    <div id="resLinks"></div>
+  </dialog>
+
+  <!-- 진행 창 -->
+  <dialog id="progress">
+    <p id="progMsg"></p>
+    <progress id="progBar" max="1" value="0"></progress>
+  </dialog>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/webp.js"></script>
+  <script src="js/apng.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/github.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
