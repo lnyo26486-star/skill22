@@ -28,6 +28,18 @@
     ['spin', '계속 회전'], ['flicker', '깜빡임'], ['wobble', '좌우 흔들림']
   ];
   const EASES = [['out', '부드럽게 멈춤'], ['inout', '느리게-빠르게-느리게'], ['linear', '일정하게'], ['back', '살짝 넘쳤다 돌아옴'], ['bounce', '통통 튕김']];
+  const BLENDS = [
+    ['normal', '일반'], ['add', '빛처럼 더하기'], ['multiply', '곱하기'], ['screen', '스크린'], ['overlay', '오버레이'],
+    ['soft-light', '소프트 라이트'], ['hard-light', '하드 라이트'], ['color-dodge', '색상 닷지'], ['color-burn', '색상 번'],
+    ['darken', '어둡게'], ['lighten', '밝게'], ['difference', '차이'], ['exclusion', '제외'],
+    ['hue', '색조'], ['saturation', '채도'], ['color', '색상'], ['luminosity', '광도']
+  ];
+  const BLEND_OPS = {
+    normal: 'source-over', add: 'lighter', multiply: 'multiply', screen: 'screen', overlay: 'overlay',
+    'soft-light': 'soft-light', 'hard-light': 'hard-light', 'color-dodge': 'color-dodge', 'color-burn': 'color-burn',
+    darken: 'darken', lighten: 'lighten', difference: 'difference', exclusion: 'exclusion',
+    hue: 'hue', saturation: 'saturation', color: 'color', luminosity: 'luminosity'
+  };
   const SHAPES = [['orb', '빛 덩어리'], ['circle', '원'], ['ring', '링'], ['rect', '사각형'], ['star', '별'], ['slash', '베기 자국']];
 
   function bounceOut(t) {
@@ -222,7 +234,7 @@
   function drawLayer(ctx, L, st) {
     ctx.save();
     ctx.globalAlpha = clamp(L.opacity * st.a, 0, 1);
-    ctx.globalCompositeOperation = L.blend === 'add' ? 'lighter' : 'source-over';
+    ctx.globalCompositeOperation = BLEND_OPS[L.blend] || 'source-over';
     ctx.translate(L.x + st.dx, L.y + st.dy);
     ctx.rotate(((L.rot + st.rot) * Math.PI) / 180);
     const s = (L.scale / 100) * st.s;
@@ -272,7 +284,7 @@
   }
 
   g.FX = {
-    FONTS, IN_TYPES, OUT_TYPES, LOOP_TYPES, EASES, SHAPES,
+    FONTS, IN_TYPES, OUT_TYPES, LOOP_TYPES, EASES, SHAPES, BLENDS,
     evalLayer, renderFrame, layerBox, preload, ensureFont, loadImage,
     setImageLoadHandler: (fn) => { onImageLoad = fn; }
   };

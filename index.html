@@ -55,6 +55,8 @@
             <input id="fileImg" type="file" accept="image/*" multiple hidden>
             <input id="fileReplace" type="file" accept="image/*" hidden>
           </div>
+          <button id="addPsd" class="psd-btn">PSD 불러오기 (레이어별)</button>
+          <input id="filePsd" type="file" accept=".psd,image/vnd.adobe.photoshop" hidden>
           <div class="url-add">
             <input id="imgUrl" type="url" placeholder="이미지 주소로 추가" aria-label="이미지 주소">
             <button id="addImgUrl">추가</button>
@@ -156,6 +158,23 @@
     </section>
   </main>
 
+  <!-- PSD 가져오기 창 -->
+  <dialog id="psdDlg">
+    <form method="dialog" class="dlg-head"><h2>PSD 레이어 가져오기</h2><button>닫기</button></form>
+    <p id="psdInfo" class="hint"></p>
+    <div class="psd-opts">
+      <label class="chk"><input id="psdFit" type="checkbox" checked>캔버스 크기를 PSD에 맞추기</label>
+      <label class="chk"><input id="psdCrop" type="checkbox" checked>캔버스 밖은 잘라내기 (용량 줄임)</label>
+      <label class="chk"><input id="psdReplace" type="checkbox">기존 레이어는 지우고 가져오기</label>
+    </div>
+    <ul id="psdList" class="psd-list"></ul>
+    <div class="row-btns">
+      <button id="psdAll">전체 선택</button>
+      <button id="psdNone">전체 해제</button>
+      <button id="psdGo" class="primary">가져오기</button>
+    </div>
+  </dialog>
+
   <!-- 결과 창 -->
   <dialog id="result">
     <form method="dialog" class="dlg-head"><h2>완성!</h2><button>닫기</button></form>
@@ -183,6 +202,8 @@
   <script src="fx.js"></script>
   <script src="export.js"></script>
   <script src="github.js"></script>
+  <script src="ag-psd.js"></script>
+  <script src="psd.js"></script>
   <script src="editor.js"></script>
   <script src="app.js"></script>
 </body>

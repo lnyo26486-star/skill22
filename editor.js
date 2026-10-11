@@ -39,11 +39,17 @@
   const round = (v) => Math.round(v * 100) / 100;
 
   /* ---------- 저장 ---------- */
-  let saveT = null;
+  let saveT = null, saveWarned = false;
   function saveSoon() {
     clearTimeout(saveT);
     saveT = setTimeout(() => {
-      try { localStorage.setItem(LS, JSON.stringify(p)); } catch (e) { /* 용량 초과 등은 무시 */ }
+      try { localStorage.setItem(LS, JSON.stringify(p)); }
+      catch (e) {
+        if (!saveWarned) {
+          saveWarned = true;
+          toast('작업이 커서 자동 저장을 못 해요. "프로젝트 저장" 버튼으로 파일에 저장해 두세요.', 'error');
+        }
+      }
     }, 600);
   }
 
@@ -348,7 +354,7 @@
       select('퇴장', 'outType', FX.OUT_TYPES), num('퇴장 시간', 'outDur', { min: 0, step: 0.05 }),
       select('움직임 곡선', 'ease', FX.EASES), h('span'),
       sec('빛과 겹침'),
-      select('겹침', 'blend', [['normal', '일반'], ['add', '빛처럼 더하기']]),
+      select('겹침', 'blend', FX.BLENDS),
       color('빛 색', 'glowColor'), num('빛 번짐', 'glowBlur', { min: 0, max: 200 }));
   }
   function syncXY() {
@@ -539,6 +545,142 @@
   $('#expWebp').addEventListener('click', () => doExport('webp'));
   $('#expWebm').addEventListener('click', () => doExport('webm'));
   $('#expPng').addEventListener('click', () => doExport('png'));
+
+  /* ---------- PSD 가져오기 ---------- */
+  const psdDlg = $('#psdDlg');
+  let psdState = null;
+  const nextPaint = () => new Promise((r) => setTimeout(r, 40));
+
+  $('#addPsd').addEventListener('click', () => $('#filePsd').click());
+  $('#filePsd').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    showProgress('PSD를 읽는 중…');
+    $('#progBar').removeAttribute('value');
+    await nextPaint();
+    try {
+      psdState = await PSDImport.parse(f);
+      psdState.fileName = f.name;
+      prog.close();
+      openPsdDialog();
+    } catch (err) {
+      if (prog.open) prog.close();
+      toast(err.message, 'error');
+    }
+  });
+
+  function openPsdDialog() {
+    const { width, height, entries } = psdState;
+    const fitOk = width <= 4096 && height <= 4096;
+    $('#psdInfo').textContent = `${psdState.fileName} · ${width}×${height}px · 레이어 ${entries.filter((x) => x.kind === 'layer').length}개`;
+    $('#psdFit').checked = fitOk;
+    $('#psdFit').disabled = !fitOk;
+    $('#psdReplace').checked = false;
+    const ul = $('#psdList');
+    ul.innerHTML = '';
+    PSDImport.displayOrder(entries).forEach((en) => {
+      const pad = `padding-left:${en.depth * 18}px`;
+      if (en.kind === 'group') {
+        ul.append(h('li', { class: 'grp', style: pad }, `그룹 · ${en.name}${en.hidden ? ' (숨김)' : ''}`));
+        return;
+      }
+      const cb = h('input', { type: 'checkbox', checked: !en.hidden && !en.empty, disabled: en.empty, 'aria-label': `${en.name} 가져오기` });
+      en.cb = cb;
+      const th = h('canvas', { width: 48, height: 48, class: 'checker' });
+      if (!en.empty && en.src && en.src.getContext) {
+        const s = Math.min(48 / en.w, 48 / en.h);
+        const tw = Math.max(1, en.w * s), tt = Math.max(1, en.h * s);
+        th.getContext('2d').drawImage(en.src, (48 - tw) / 2, (48 - tt) / 2, tw, tt);
+      }
+      const tags = [];
+      if (en.isText) tags.push('텍스트(이미지로 가져옴)');
+      if (en.hidden) tags.push('숨김');
+      if (en.blend !== 'normal') tags.push('겹침: ' + (FX.BLENDS.find((b) => b[0] === en.blend) || [0, en.blend])[1]);
+      if (en.blendLost) tags.push(`겹침 "${en.blendLost}"은 지원 안 해 일반으로`);
+      if (en.glow) tags.push('외부 광선 → 빛 번짐으로 근사');
+      if (en.fxLost.length) tags.push('효과 무시: ' + en.fxLost.join(', '));
+      if (en.hasMask) tags.push('마스크 무시');
+      if (en.clipped) tags.push('클리핑 무시');
+      if (en.empty) tags.push('이미지 없음');
+      ul.append(h('li', { style: pad },
+        h('label', { class: 'psd-row' }, cb, th,
+          h('span', { class: 'psd-meta' },
+            h('strong', {}, en.name),
+            h('small', {}, [en.empty ? '' : `${en.w}×${en.h}`, ...tags].filter(Boolean).join(' · '))))));
+    });
+    psdDlg.showModal();
+  }
+  const psdChecks = () => psdState.entries.filter((e) => e.kind === 'layer' && e.cb && !e.cb.disabled);
+  $('#psdAll').addEventListener('click', () => psdChecks().forEach((e) => { e.cb.checked = true; }));
+  $('#psdNone').addEventListener('click', () => psdChecks().forEach((e) => { e.cb.checked = false; }));
+
+  /* 레이어 하나를 PNG 데이터로. 캔버스 밖을 자르고, 완전히 투명하면 null */
+  function layerImage(en, crop, W, H) {
+    let r = { sx: 0, sy: 0, sw: en.w, sh: en.h, left: en.left, top: en.top };
+    if (crop) { r = PSDImport.cropRect(en.left, en.top, en.w, en.h, W, H); if (!r) return null; }
+    const c = document.createElement('canvas');
+    c.width = r.sw; c.height = r.sh;
+    const cx = c.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(en.src, r.sx, r.sy, r.sw, r.sh, 0, 0, r.sw, r.sh);
+    const d = cx.getImageData(0, 0, r.sw, r.sh).data;
+    let any = false;
+    for (let i = 3; i < d.length; i += 4) if (d[i]) { any = true; break; }
+    if (!any) return null;
+    return { src: c.toDataURL('image/png'), w: r.sw, h: r.sh, left: r.left, top: r.top };
+  }
+
+  $('#psdGo').addEventListener('click', async () => {
+    const picks = psdState.entries.filter((e) => e.kind === 'layer' && e.cb && e.cb.checked);
+    if (!picks.length) return toast('가져올 레이어를 선택해 주세요.', 'error');
+    const { width: W, height: H } = psdState;
+    const fit = $('#psdFit').checked, crop = $('#psdCrop').checked, replace = $('#psdReplace').checked;
+    psdDlg.close();
+    if (S.playing) pause();
+    showProgress('레이어를 가져오는 중…');
+    await nextPaint();
+    try {
+      if (replace) { p.layers = []; S.sel = null; }
+      let ox = 0, oy = 0;
+      if (fit) {
+        const dx = (W - p.w) / 2, dy = (H - p.h) / 2;
+        p.layers.forEach((L) => { L.x += dx; L.y += dy; });
+        p.w = W; p.h = H;
+        syncProjectInputs();
+        applySize();
+      } else { ox = (p.w - W) / 2; oy = (p.h - H) / 2; }
+
+      const made = [];
+      let blank = 0;
+      for (let i = 0; i < picks.length; i++) {
+        const en = picks[i];
+        const img = layerImage(en, crop, W, H);
+        if (!img) blank++;
+        else {
+          made.push(makeLayer('image', p, {
+            name: en.name, src: img.src, w: img.w,
+            x: img.left + img.w / 2 + ox, y: img.top + img.h / 2 + oy,
+            opacity: round(en.opacity), blend: en.blend, inType: 'none', outType: 'none',
+            glowColor: en.glow ? en.glow.color : '#ffffff', glowBlur: en.glow ? en.glow.blur : 0
+          }));
+        }
+        $('#progBar').value = (i + 1) / picks.length;
+        await new Promise((r) => setTimeout(r));
+      }
+      p.layers.push(...made);
+      await Promise.all(made.map((L) => FX.loadImage(L.src)));
+      S.sel = made.length ? made[made.length - 1].id : null;
+      prog.close();
+      renderList(); buildInspector(); buildTimeline(); setTime(S.time);
+      saveSoon();
+      const lost = picks.filter((e) => e.blendLost).length;
+      toast(`${made.length}개 레이어를 가져왔어요` + (blank ? ` (빈 레이어 ${blank}개 제외)` : '') + (lost ? ` · 지원 안 하는 겹침 ${lost}개는 일반으로` : ''));
+    } catch (err) {
+      if (prog.open) prog.close();
+      toast('가져오지 못했어요: ' + (err.message || err), 'error');
+    }
+    psdState = null;
+  });
 
   /* ---------- 시작 ---------- */
   window.Editor = { pause, refresh: () => { fitStage(); render(); } };
